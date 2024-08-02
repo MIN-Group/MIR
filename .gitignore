@@ -1,0 +1,5 @@
+.idea/
+daemon/.DS_Store
+daemon/mircmd/.DS_Store
+.DS_Store
+*.log

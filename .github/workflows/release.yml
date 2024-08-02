@@ -1,0 +1,58 @@
+name: main-release
+on:
+  push:
+    tags:
+      - v*
+jobs:
+  release:
+    strategy:
+      matrix:
+        os: [ubuntu-18.04, ubuntu-20.04, macos-11]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          path: mir-go
+
+      - uses: actions/checkout@v2
+        with:
+          repository: MIN-Group/minlib
+          ref: main
+          path: minlib
+
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.17
+
+      - name: Install Dependency Library on Ubuntu
+        if: startsWith(matrix.os, 'ubuntu')
+        run: cd mir-go && sudo apt install gcc libpcap-dev -y && pwd && go mod download && mkdir build && cd build
+
+      - name: Install Dependency Library on Macos
+        if: startsWith(matrix.os, 'macos')
+        run: cd mir-go && brew install libpcap && pwd && go mod download && mkdir build && cd build
+
+      - name: Get version
+        id: get_version
+        run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
+
+      - name: Build mir
+        run: cd mir-go/build && ls -ltrh && ls -ltrh ../ && go build ../daemon/mircmd/mir
+      - name: Build mird
+        run: cd mir-go/build && go build ../daemon/mircmd/mird
+      - name: Build mirgen
+        run: cd mir-go/build && go build ../daemon/mircmd/mirgen
+      - name: Build mirc
+        run: cd mir-go/build && go build ../daemon/mgmt/mirc
+      - name: Copy Config File
+        run: cd mir-go/build && cp ../mirconf.ini . && cp ../min.conf . && cp ../install_release.sh install.sh
+      - name: Archive
+        run: cd mir-go && tar -czvf mir-go-${{ matrix.os }}-${{ steps.get_version.outputs.VERSION }}.tar.gz build
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          body_path: mir-go/CHANGELOG.txt
+          files: |
+            mir-go/mir-go-${{ matrix.os }}-${{ steps.get_version.outputs.VERSION }}.tar.gz
